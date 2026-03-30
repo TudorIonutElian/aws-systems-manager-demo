@@ -21,3 +21,19 @@ resource "aws_ssm_document" "unblock_port_80" {
 
   content = file("documents/unblock-port-80.yaml")
 }
+
+resource "aws_ssm_document" "install_httpd" {
+  name            = "install_httpd"
+  document_format = "YAML"
+  document_type   = "Command"
+
+  content = file("documents/install-httpd.yaml")
+}
+
+resource "aws_ssm_document" "create_httpd_instances" {
+  name            = "create_httpd_instances"
+  document_format = "YAML"
+  document_type   = "Automation"
+
+  content = file("documents/create-httpd-instances.yaml")
+}
