@@ -14,6 +14,26 @@ mainSteps:
     - 'sudo yum install -y httpd'
     - 'sudo systemctl start httpd'
     - 'sudo systemctl enable httpd'
+    - 'sudo mkdir -p /var/www/cgi-bin'
+    - |
+      sudo bash -c 'cat > /var/www/cgi-bin/hostname << "EOF"
+      #!/bin/bash
+      echo "Content-Type: text/plain"
+      echo ""
+      hostname -f
+      EOF'
+    - 'sudo chmod +x /var/www/cgi-bin/hostname'
+    - |
+      sudo bash -c 'cat >> /etc/httpd/conf/httpd.conf << "EOF"
+
+      # Enable CGI for hostname endpoint
+      ScriptAlias /api/hostname /var/www/cgi-bin/hostname
+      <Directory "/var/www/cgi-bin">
+          AllowOverride None
+          Options +ExecCGI
+          Require all granted
+      </Directory>
+      EOF'
 
 - action: aws:runShellScript
   name: deployReactApp

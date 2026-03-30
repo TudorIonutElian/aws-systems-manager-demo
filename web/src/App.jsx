@@ -2,10 +2,18 @@ import { useState, useEffect } from 'react'
 
 export default function App() {
   const [time, setTime] = useState(new Date())
+  const [hostname, setHostname] = useState('Loading...')
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000)
     return () => clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/hostname')
+      .then(res => res.text())
+      .then(data => setHostname(data))
+      .catch(() => setHostname('Unknown'))
   }, [])
 
   return (
@@ -19,6 +27,9 @@ export default function App() {
         <h1 style={styles.text}>Demo AWS Systems Manager</h1>
         <div style={styles.clock}>
           {time.toLocaleTimeString()}
+        </div>
+        <div style={styles.hostname}>
+          Instance: {hostname}
         </div>
       </div>
     </div>
@@ -114,6 +125,16 @@ const styles = {
     textShadow: '0 0 30px rgba(99,102,241,0.6), 0 0 60px rgba(236,72,153,0.4)',
     letterSpacing: '0.1em',
     userSelect: 'none',
+  },
+  hostname: {
+    fontSize: 'clamp(1rem, 3vw, 1.5rem)',
+    fontWeight: '500',
+    fontFamily: "'Courier New', monospace",
+    color: 'rgba(255,255,255,0.7)',
+    textShadow: '0 0 20px rgba(34,211,238,0.5)',
+    letterSpacing: '0.05em',
+    userSelect: 'none',
+    marginTop: '1rem',
   },
 }
 
