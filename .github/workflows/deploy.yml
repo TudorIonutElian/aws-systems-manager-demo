@@ -93,76 +93,112 @@ jobs:
 
       # ── Deploy via SSM ───────────────────────────────────────────────────────
 
-      - name: Deploy React app via SSM (tag-based targeting)
+      - name: Wait for instances to register with SSM
+        run: |
+          echo "Waiting for all instances to register with SSM..."
+          REGION=${{ env.AWS_REGION }}
+          INSTANCE_IDS=$(jq -r '.[]' instance_ids.json)
+
+          ALL_ONLINE=true
+          for ID in $INSTANCE_IDS; do
+            echo "Checking $ID..."
+            ONLINE=false
+
+            for i in $(seq 1 60); do
+              STATUS=$(aws ssm describe-instance-information \
+                --filters "Key=InstanceIds,Values=$ID" \
+                --region "$REGION" \
+                --query "InstanceInformationList[0].PingStatus" \
+                --output text 2>/dev/null || echo "NotFound")
+
+              if [[ "$STATUS" == "Online" ]]; then
+                echo "  ✅ $ID is registered and online"
+                ONLINE=true
+                break
+              fi
+
+              if [[ $i -eq 1 ]] || [[ $((i % 6)) -eq 0 ]]; then
+                echo "  [$i/60] Status: $STATUS - waiting..."
+              fi
+              sleep 10
+            done
+
+            if [[ "$ONLINE" == "false" ]]; then
+              echo "  ⚠️ Warning: $ID did not register within 10 minutes"
+              ALL_ONLINE=false
+            fi
+          done
+
+          if [[ "$ALL_ONLINE" == "false" ]]; then
+            echo ""
+            echo "⚠️  Some instances did not register with SSM in time."
+            echo "This may be due to slow boot times or SSM agent issues."
+            echo "Continuing anyway - command will target available instances only."
+          fi
+
+      - name: Deploy React app via SSM
         run: |
           BUCKET=${{ steps.tf.outputs.artifact_bucket }}
           REGION=${{ env.AWS_REGION }}
-          BUILD_NUMBER=${{ github.run_number }}
-          TARGET_TAG="Environment"
-          TARGET_VALUE="Development-${BUILD_NUMBER}"
+          INSTANCE_IDS=$(jq -r '.[]' instance_ids.json)
 
-          echo "Deploying to instances with tag: ${TARGET_TAG}=${TARGET_VALUE}"
+          echo "Deploying to instances: $(echo $INSTANCE_IDS | tr '\n' ' ')"
 
-          # Send command using tag-based targeting
-          # SSM will automatically wait for instances to come online
+          # Send command to specific instance IDs
           COMMAND_ID=$(aws ssm send-command \
             --document-name "AWS-RunShellScript" \
-            --targets "Key=tag:${TARGET_TAG},Values=${TARGET_VALUE}" \
+            --instance-ids $INSTANCE_IDS \
             --max-concurrency "10" \
-            --max-errors "0" \
             --timeout-seconds 300 \
             --parameters commands='[
-              "echo \"Waiting for instance to be fully ready...\"",
-              "sleep 30",
+              "echo \"Starting deployment on $(hostname)...\"",
               "aws s3 cp s3://'"$BUCKET"'/dist-latest.tar.gz /tmp/dist.tar.gz",
               "sudo rm -rf /var/www/html/*",
               "sudo tar -xzf /tmp/dist.tar.gz -C /var/www/html/",
               "sudo systemctl restart httpd",
-              "echo \"Deployment complete on $(hostname)\""
+              "echo \"✅ Deployment complete on $(hostname)\""
             ]' \
             --region "$REGION" \
             --query "Command.CommandId" \
             --output text)
 
+          echo ""
           echo "SSM Command ID: $COMMAND_ID"
-          echo "Command will execute as instances come online..."
+          echo ""
 
-          # Wait for command to complete on all targeted instances
-          echo "Waiting for command to complete on all instances..."
-          for i in $(seq 1 60); do
-            # Get command status
+          # Wait for command completion
+          for i in $(seq 1 45); do
             RESPONSE=$(aws ssm list-commands \
               --command-id "$COMMAND_ID" \
               --region "$REGION" \
-              --query "Commands[0].[Status,TargetCount,CompletedCount,ErrorCount,StatusDetails]" \
+              --query "Commands[0].[Status,TargetCount,CompletedCount,ErrorCount]" \
               --output text)
 
-            read -r STATUS TARGET_COUNT COMPLETED_COUNT ERROR_COUNT STATUS_DETAILS <<< "$RESPONSE"
+            read -r STATUS TARGET_COUNT COMPLETED_COUNT ERROR_COUNT <<< "$RESPONSE"
 
-            echo "  [$i/60] Status: $STATUS | Completed: $COMPLETED_COUNT/$TARGET_COUNT | Errors: $ERROR_COUNT"
+            echo "  [$i/45] Status: $STATUS | Completed: $COMPLETED_COUNT/$TARGET_COUNT | Errors: $ERROR_COUNT"
 
             if [[ "$STATUS" == "Success" ]]; then
-              echo "✅ Deployment successful on all instances!"
+              echo ""
+              echo "✅ Deployment successful on all $TARGET_COUNT instances!"
               break
             elif [[ "$STATUS" == "Failed" ]]; then
-              echo "❌ Deployment failed. Fetching error details..."
+              echo ""
+              echo "❌ Deployment failed. Showing command invocation details:"
               aws ssm list-command-invocations \
                 --command-id "$COMMAND_ID" \
                 --region "$REGION" \
-                --details
-              exit 1
-            elif [[ "$STATUS" == "Cancelled" || "$STATUS" == "TimedOut" ]]; then
-              echo "❌ Deployment $STATUS"
+                --details \
+                --query "CommandInvocations[*].[InstanceId,Status,StatusDetails]" \
+                --output table
               exit 1
             fi
 
             sleep 10
           done
 
-          # If we hit timeout
           if [[ "$STATUS" != "Success" ]]; then
-            echo "⚠️  Deployment did not complete in time. Final status: $STATUS"
-            echo "Check AWS Console for command details: $COMMAND_ID"
+            echo "⚠️ Deployment timed out. Status: $STATUS"
             exit 1
           fi
 
