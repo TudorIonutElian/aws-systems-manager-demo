@@ -53,15 +53,22 @@ jobs:
           SG_ID=${{ steps.tf.outputs.security_group_id }}
           BUILD_NUMBER=${{ github.run_number }}
 
-          gh api --method PATCH /repos/$REPO/actions/variables/DEPLOY_BUILD_NUMBER \
-            -f name=DEPLOY_BUILD_NUMBER -f value="$BUILD_NUMBER" 2>/dev/null || \
-          gh api --method POST /repos/$REPO/actions/variables \
-            -f name=DEPLOY_BUILD_NUMBER -f value="$BUILD_NUMBER"
+          # Function to create or update a variable
+          set_variable() {
+            local name=$1
+            local value=$2
 
-          gh api --method PATCH /repos/$REPO/actions/variables/DEPLOY_SECURITY_GROUP_ID \
-            -f name=DEPLOY_SECURITY_GROUP_ID -f value="$SG_ID" 2>/dev/null || \
-          gh api --method POST /repos/$REPO/actions/variables \
-            -f name=DEPLOY_SECURITY_GROUP_ID -f value="$SG_ID"
+            if gh api /repos/$REPO/actions/variables/$name &>/dev/null; then
+              echo "Updating $name to: $value"
+              gh api --method PATCH /repos/$REPO/actions/variables/$name -f name="$name" -f value="$value"
+            else
+              echo "Creating $name with value: $value"
+              gh api --method POST /repos/$REPO/actions/variables -f name="$name" -f value="$value"
+            fi
+          }
+
+          set_variable "DEPLOY_BUILD_NUMBER" "$BUILD_NUMBER"
+          set_variable "DEPLOY_SECURITY_GROUP_ID" "$SG_ID"
 
       # ── React build ──────────────────────────────────────────────────────────
 
