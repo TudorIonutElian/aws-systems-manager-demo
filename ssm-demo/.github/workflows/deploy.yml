@@ -1,0 +1,140 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: eu-central-1
+  TF_VAR_build_number: ${{ github.run_number }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # ── Terraform ────────────────────────────────────────────────────────────
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+
+      - name: Get Terraform outputs
+        id: tf
+        run: |
+          echo "artifact_bucket=$(terraform output -raw artifact_bucket_name)" >> $GITHUB_OUTPUT
+          echo "security_group_id=$(terraform output -raw security_group_id)" >> $GITHUB_OUTPUT
+          terraform output -json instance_ids >> instance_ids.json
+
+      - name: Save build number and SG ID as repo variables
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REPO=${{ github.repository }}
+          SG_ID=${{ steps.tf.outputs.security_group_id }}
+          BUILD_NUMBER=${{ github.run_number }}
+
+          gh api --method PATCH /repos/$REPO/actions/variables/DEPLOY_BUILD_NUMBER \
+            -f name=DEPLOY_BUILD_NUMBER -f value="$BUILD_NUMBER" 2>/dev/null || \
+          gh api --method POST /repos/$REPO/actions/variables \
+            -f name=DEPLOY_BUILD_NUMBER -f value="$BUILD_NUMBER"
+
+          gh api --method PATCH /repos/$REPO/actions/variables/DEPLOY_SECURITY_GROUP_ID \
+            -f name=DEPLOY_SECURITY_GROUP_ID -f value="$SG_ID" 2>/dev/null || \
+          gh api --method POST /repos/$REPO/actions/variables \
+            -f name=DEPLOY_SECURITY_GROUP_ID -f value="$SG_ID"
+
+      # ── React build ──────────────────────────────────────────────────────────
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: web
+        run: npm install
+
+      - name: Build React app
+        working-directory: web
+        run: npm run build
+
+      - name: Upload build to S3
+        run: |
+          tar -czf dist.tar.gz -C web/dist .
+          aws s3 cp dist.tar.gz s3://${{ steps.tf.outputs.artifact_bucket }}/dist-${{ github.run_number }}.tar.gz
+          aws s3 cp dist.tar.gz s3://${{ steps.tf.outputs.artifact_bucket }}/dist-latest.tar.gz
+
+      # ── Deploy via SSM ───────────────────────────────────────────────────────
+
+      - name: Wait for SSM agents to register
+        run: |
+          echo "Waiting for SSM agents on all instances..."
+          INSTANCE_IDS=$(jq -r '.[]' instance_ids.json)
+          for ID in $INSTANCE_IDS; do
+            echo "Waiting for $ID..."
+            aws ssm wait managed-instance-available \
+              --filters "Key=instanceIds,Values=$ID" \
+              --region ${{ env.AWS_REGION }} || true
+          done
+
+      - name: Deploy React app via SSM
+        run: |
+          BUCKET=${{ steps.tf.outputs.artifact_bucket }}
+          REGION=${{ env.AWS_REGION }}
+
+          COMMAND_ID=$(aws ssm send-command \
+            --document-name "AWS-RunShellScript" \
+            --targets "Key=tag:Environment,Values=Development-${{ github.run_number }}" \
+            --parameters commands='[
+              "aws s3 cp s3://'"$BUCKET"'/dist-latest.tar.gz /tmp/dist.tar.gz",
+              "sudo rm -rf /var/www/html/*",
+              "sudo tar -xzf /tmp/dist.tar.gz -C /var/www/html/",
+              "sudo systemctl restart httpd"
+            ]' \
+            --region "$REGION" \
+            --query "Command.CommandId" \
+            --output text)
+
+          echo "SSM Command ID: $COMMAND_ID"
+
+          echo "Waiting for command to complete on all instances..."
+          for i in $(seq 1 30); do
+            STATUS=$(aws ssm list-commands \
+              --command-id "$COMMAND_ID" \
+              --region "$REGION" \
+              --query "Commands[0].StatusDetails" \
+              --output text)
+            echo "  [$i/30] Status: $STATUS"
+            if [[ "$STATUS" == "Success" ]]; then
+              echo "Deployment successful."
+              break
+            elif [[ "$STATUS" == "Failed" || "$STATUS" == "Cancelled" || "$STATUS" == "TimedOut" ]]; then
+              echo "Deployment failed with status: $STATUS"
+              exit 1
+            fi
+            sleep 10
+          done
+
+      - name: Print website URLs
+        run: terraform output -json website_urls | jq -r '.[]'

@@ -1,0 +1,44 @@
+---
+schemaVersion: '2.2'
+description: This document installs Apache on the instance and deploys a sample website.
+parameters:
+  Message:
+    type: "String"
+    description: "Will be displayed on the web page."
+    default: "Welcome to the SSM Demo!"
+mainSteps:
+- action: aws:runShellScript
+  name: configureApache
+  inputs:
+    runCommand:
+    - 'sudo yum update -y'
+    - 'sudo yum install -y httpd'
+    - 'sudo systemctl start httpd'
+    - 'sudo systemctl enable httpd'
+    - |
+      sudo bash -c 'cat > /var/www/html/index.html << EOF
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>SSM Demo</title>
+        <style>
+          body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: #f0f4f8; }
+          .card { background: white; border-radius: 12px; padding: 40px 60px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); text-align: center; max-width: 500px; }
+          h1 { color: #232f3e; margin-bottom: 8px; }
+          p { color: #555; font-size: 1.1em; }
+          .badge { display: inline-block; background: #ff9900; color: white; border-radius: 20px; padding: 6px 18px; font-size: 0.9em; margin-top: 20px; }
+          .hostname { font-size: 0.85em; color: #888; margin-top: 16px; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h1>{{Message}}</h1>
+          <p>Deployed via AWS Systems Manager</p>
+          <div class="badge">SSM Run Command</div>
+          <div class="hostname">Host: $(hostname -f)</div>
+        </div>
+      </body>
+      </html>
+      EOF'
