@@ -8,11 +8,17 @@ data "aws_ami" "ssm_ami_filter" {
 
   filter {
     name   = "name"
-    values = ["${var.startsWith}-*-${var.endsWith}"]
+    values = ["al2023-ami-2023.*-kernel-*-x86_64"]
   }
 
   filter {
     name   = "architecture"
-    values = ["${var.architecture}"]
+    values = ["x86_64"]
+  }
+
+  # Exclude minimal AMIs (they don't have SSM agent pre-installed)
+  filter {
+    name   = "name"
+    values = ["*"]
   }
 }
