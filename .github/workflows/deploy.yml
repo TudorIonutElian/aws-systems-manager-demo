@@ -120,10 +120,13 @@ jobs:
         run: |
           BUCKET=${{ steps.tf.outputs.artifact_bucket }}
           REGION=${{ env.AWS_REGION }}
+          INSTANCE_IDS=$(jq -r 'join(",")' instance_ids.json)
+
+          echo "Deploying to instances: $INSTANCE_IDS"
 
           COMMAND_ID=$(aws ssm send-command \
             --document-name "AWS-RunShellScript" \
-            --targets "Key=tag:Environment,Values=Development-${{ github.run_number }}" \
+            --instance-ids $(echo $INSTANCE_IDS | tr ',' ' ') \
             --parameters commands='[
               "aws s3 cp s3://'"$BUCKET"'/dist-latest.tar.gz /tmp/dist.tar.gz",
               "sudo rm -rf /var/www/html/*",
