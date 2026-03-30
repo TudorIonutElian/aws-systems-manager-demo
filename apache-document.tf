@@ -37,3 +37,11 @@ resource "aws_ssm_document" "create_httpd_instances" {
 
   content = file("documents/create-httpd-instances.yaml")
 }
+
+resource "aws_ssm_document" "deploy_by_tag" {
+  name            = "deploy_by_tag"
+  document_format = "YAML"
+  document_type   = "Automation"
+
+  content = file("documents/deploy-by-tag.yaml")
+}

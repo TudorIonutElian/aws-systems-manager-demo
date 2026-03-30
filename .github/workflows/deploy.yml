@@ -67,8 +67,11 @@ jobs:
             fi
           }
 
+          BUCKET=${{ steps.tf.outputs.artifact_bucket }}
+
           set_variable "DEPLOY_BUILD_NUMBER" "$BUILD_NUMBER"
           set_variable "DEPLOY_SECURITY_GROUP_ID" "$SG_ID"
+          set_variable "DEPLOY_BUCKET" "$BUCKET"
 
       # ── React build ──────────────────────────────────────────────────────────
 
