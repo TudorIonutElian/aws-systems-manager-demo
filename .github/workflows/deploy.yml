@@ -144,20 +144,13 @@ jobs:
 
           echo "Deploying to instances: $(echo $INSTANCE_IDS | tr '\n' ' ')"
 
-          # Send command to specific instance IDs
+          # Send command using apache_document SSM document
           COMMAND_ID=$(aws ssm send-command \
-            --document-name "AWS-RunShellScript" \
+            --document-name "apache_document" \
             --instance-ids $INSTANCE_IDS \
             --max-concurrency "10" \
             --timeout-seconds 300 \
-            --parameters commands='[
-              "echo \"Starting deployment on $(hostname)...\"",
-              "aws s3 cp s3://'"$BUCKET"'/dist-latest.tar.gz /tmp/dist.tar.gz",
-              "sudo rm -rf /var/www/html/*",
-              "sudo tar -xzf /tmp/dist.tar.gz -C /var/www/html/",
-              "sudo systemctl restart httpd",
-              "echo \"✅ Deployment complete on $(hostname)\""
-            ]' \
+            --parameters "ArtifactBucket=$BUCKET" \
             --region "$REGION" \
             --query "Command.CommandId" \
             --output text)
