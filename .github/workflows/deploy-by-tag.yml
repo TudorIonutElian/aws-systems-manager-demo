@@ -79,7 +79,7 @@ jobs:
               INSTANCE_IDS=$(aws ssm get-automation-execution \
                 --automation-execution-id "$EXECUTION_ID" \
                 --region ${{ env.AWS_REGION }} \
-                --query "AutomationExecution.Outputs.'getInstancesByTag.InstanceIds'[0]" \
+                --query 'AutomationExecution.Outputs."getInstancesByTag.InstanceIds"[0]' \
                 --output text)
 
               INSTANCE_COUNT=$(echo "$INSTANCE_IDS" | tr ',' '\n' | wc -l)
