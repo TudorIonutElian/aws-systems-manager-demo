@@ -14,15 +14,11 @@ resource "aws_instance" "ssm_instances" {
     #!/bin/bash
     set -e
 
-    # Update system
-    dnf update -y
-
-    # Install SSM agent (required for AL2023 Minimal)
-    dnf install -y amazon-ssm-agent
+    # Ensure SSM agent is running (pre-installed on standard AL2023)
     systemctl enable amazon-ssm-agent
     systemctl start amazon-ssm-agent
 
-    # Install Apache
+    # Install and start Apache
     dnf install -y httpd
     systemctl enable httpd
     systemctl start httpd
@@ -31,7 +27,7 @@ resource "aws_instance" "ssm_instances" {
     mkdir -p /var/www/html
     chown -R apache:apache /var/www/html
 
-    echo "Setup complete on $(hostname)" > /var/log/user-data-complete.log
+    echo "Setup complete on $(hostname) at $(date)" > /var/log/user-data-complete.log
   EOF
 
   tags = {
