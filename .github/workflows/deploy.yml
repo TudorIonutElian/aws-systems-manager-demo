@@ -97,11 +97,23 @@ jobs:
         run: |
           echo "Waiting for SSM agents on all instances..."
           INSTANCE_IDS=$(jq -r '.[]' instance_ids.json)
+
           for ID in $INSTANCE_IDS; do
-            echo "Waiting for $ID..."
-            aws ssm wait managed-instance-available \
-              --filters "Key=instanceIds,Values=$ID" \
-              --region ${{ env.AWS_REGION }} || true
+            echo "Waiting for $ID to register with SSM..."
+            for i in $(seq 1 30); do
+              STATUS=$(aws ssm describe-instance-information \
+                --filters "Key=InstanceIds,Values=$ID" \
+                --region ${{ env.AWS_REGION }} \
+                --query "InstanceInformationList[0].PingStatus" \
+                --output text 2>/dev/null || echo "NotFound")
+
+              if [[ "$STATUS" == "Online" ]]; then
+                echo "  ✓ $ID is online and ready"
+                break
+              fi
+              echo "  [$i/30] Status: $STATUS - waiting..."
+              sleep 10
+            done
           done
 
       - name: Deploy React app via SSM
