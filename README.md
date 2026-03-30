@@ -8,7 +8,8 @@ Terraform project that provisions 5 EC2 instances and deploys a React web app to
 - Attaches an IAM role with SSM, S3, and EC2 permissions so instances can be managed remotely
 - Builds a React app and uploads the artifact to a private S3 bucket
 - Deploys the React app to all instances via SSM Run Command (pulls from S3, serves with Apache)
-- Provides a separate workflow to block port 80 across the entire fleet via SSM Automation
+- Provides workflows to block/unblock port 80 across the entire fleet via SSM Automation
+- Includes workflow to create additional httpd instances on-demand
 
 ## Prerequisites
 
@@ -17,6 +18,7 @@ Terraform project that provisions 5 EC2 instances and deploys a React web app to
   - `AWS_ACCESS_KEY_ID`
   - `AWS_SECRET_ACCESS_KEY`
 - S3 bucket and DynamoDB table for Terraform remote state (see `backend.tf`)
+- **Recommended AMI**: `ami-023adbbb2c440f837` (Amazon Linux 2023, eu-central-1)
 
 ## Workflows
 
@@ -41,6 +43,33 @@ Triggered manually from GitHub Actions. No inputs required — reads `DEPLOY_BUI
    - Revokes the port 80 ingress rule on the security group via the AWS EC2 API
 
 > `deploy.yml` must have run at least once before this workflow can be triggered.
+
+### Unblock Port 80 (`unblock-port-80.yml`)
+
+Triggered manually from GitHub Actions. Reverses the block operation by authorizing port 80 ingress.
+
+1. **SSM Automation** — runs the `unblock_port_80` document which:
+   - Discovers all running fleet instances by `Environment` tag
+   - Authorizes the port 80 ingress rule on the security group
+
+### Create HTTPD Instances (`create-httpd-instances.yml`)
+
+Triggered manually from GitHub Actions. Creates 2 t3.micro instances with Apache pre-installed.
+
+**Required inputs:**
+- `image_id` — AMI ID (recommended: `ami-023adbbb2c440f837`)
+- `subnet_id` — Subnet for instance placement
+
+**Optional inputs:**
+- `security_group_id` — Uses default security group if not provided
+- `environment_tag` — Tag value (default: `SSM-Demo`)
+
+1. **Determine Security Group** — uses provided SG or fetches the VPC default
+2. **SSM Automation** — runs the `create_httpd_instances` document which:
+   - Creates 2 t3.micro EC2 instances
+   - Waits for instances to be ready
+   - Automatically installs and configures Apache via the `install_httpd` document
+3. **Display Results** — outputs instance IDs and public URLs
 
 ## Terraform outputs
 
@@ -79,18 +108,23 @@ Triggered manually from GitHub Actions. No inputs required — reads `DEPLOY_BUI
 ├── s3-artifacts.tf         # Private S3 bucket for React build artifacts
 ├── apache-document.tf      # SSM document resources
 ├── documents/
-│   ├── apache-server.yaml  # SSM Command document — installs Apache, serves React app
-│   └── block-port-80.yaml  # SSM Automation document — revokes port 80 on the fleet SG
+│   ├── apache-server.yaml          # SSM Command — installs Apache, deploys React app
+│   ├── install-httpd.yaml          # SSM Command — installs Apache only
+│   ├── block-port-80.yaml          # SSM Automation — revokes port 80 on fleet SG
+│   ├── unblock-port-80.yaml        # SSM Automation — authorizes port 80 on fleet SG
+│   └── create-httpd-instances.yaml # SSM Automation — creates 2 t3.micro instances
 ├── web/                    # React application (Vite)
 │   ├── index.html
 │   ├── vite.config.js
 │   ├── package.json
 │   └── src/
 │       ├── main.jsx
-│       ├── App.jsx
+│       ├── App.jsx         # Displays instance hostname
 │       └── index.css
 └── .github/
     └── workflows/
-        ├── deploy.yml          # Provisions infra, builds and deploys the React app
-        └── block-port-80.yml   # Blocks port 80 across the fleet via SSM Automation
+        ├── deploy.yml                  # Provisions infra, builds and deploys React app
+        ├── block-port-80.yml           # Blocks port 80 via SSM Automation
+        ├── unblock-port-80.yml         # Unblocks port 80 via SSM Automation
+        └── create-httpd-instances.yml  # Creates 2 httpd instances via SSM Automation
 ```
