@@ -13,3 +13,11 @@ resource "aws_ssm_document" "block_port_80" {
 
   content = file("documents/block-port-80.yaml")
 }
+
+resource "aws_ssm_document" "unblock_port_80" {
+  name            = "unblock_port_80"
+  document_format = "YAML"
+  document_type   = "Automation"
+
+  content = file("documents/unblock-port-80.yaml")
+}
