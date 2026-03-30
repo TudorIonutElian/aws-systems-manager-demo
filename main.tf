@@ -16,11 +16,13 @@ terraform {
 
 /**********************************************************
   # Add configuration to authorisation keys
-  # Configure the AWS Provider  
+  # Configure the AWS Provider
 **********************************************************/
 
 provider "aws" {
-  shared_config_files      = ["~/.aws/config"]
-  shared_credentials_files = ["~/.aws/credentials"]
-  profile                  = "default"
+  region = "eu-central-1"
+
+  # Only use profile-based auth when AWS_ACCESS_KEY_ID is not set (local dev)
+  # In GitHub Actions, credentials come from environment variables via
+  # aws-actions/configure-aws-credentials action
 }
