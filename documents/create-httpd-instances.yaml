@@ -14,7 +14,7 @@ parameters:
   IamInstanceProfile:
     type: "String"
     description: "IAM instance profile name for SSM access."
-    default: "SSMInstanceProfile"
+    default: "ec2_ssm_profile"
   KeyName:
     type: "String"
     description: "EC2 key pair name for SSH access."
