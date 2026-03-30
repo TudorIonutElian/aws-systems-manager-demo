@@ -1,7 +1,7 @@
 variable "ssm_instance_type" {
   type        = string
-  default     = "t2.micro"
-  description = "SSM instance type"
+  default     = "t3.micro"
+  description = "SSM instance type (t3.micro is Free Tier eligible)"
 }
 
 variable "ssm_instance_count" {
