@@ -45,3 +45,11 @@ resource "aws_ssm_document" "deploy_by_tag" {
 
   content = file("documents/deploy-by-tag.yaml")
 }
+
+resource "aws_ssm_document" "destroy_by_tag" {
+  name            = "destroy_by_tag"
+  document_format = "YAML"
+  document_type   = "Automation"
+
+  content = file("documents/destroy-by-tag.yaml")
+}
