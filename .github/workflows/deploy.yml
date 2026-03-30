@@ -47,7 +47,7 @@ jobs:
 
       - name: Save build number and SG ID as repo variables
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           REPO=${{ github.repository }}
           SG_ID=${{ steps.tf.outputs.security_group_id }}
