@@ -95,13 +95,13 @@ jobs:
               INSTANCE_1=$(aws ssm get-automation-execution \
                 --automation-execution-id "$EXECUTION_ID" \
                 --region ${{ env.AWS_REGION }} \
-                --query "AutomationExecution.Outputs.'createInstance1.InstanceId1'[0]" \
+                --query 'AutomationExecution.Outputs."createInstance1.InstanceId1"[0]' \
                 --output text)
 
               INSTANCE_2=$(aws ssm get-automation-execution \
                 --automation-execution-id "$EXECUTION_ID" \
                 --region ${{ env.AWS_REGION }} \
-                --query "AutomationExecution.Outputs.'createInstance2.InstanceId2'[0]" \
+                --query 'AutomationExecution.Outputs."createInstance2.InstanceId2"[0]' \
                 --output text)
 
               echo ""
