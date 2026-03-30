@@ -1,7 +1,7 @@
 terraform {
     backend "s3" {
-        bucket         = "teamcity-ssm-demo"
-        key            = "teamcity-ssm-demo-state.tfstate"
+        bucket         = "ssm-demo-434655687811"
+        key            = "ssm-demo-state.tfstate"
         region         = "eu-central-1"
         use_lockfile   = true
     }
