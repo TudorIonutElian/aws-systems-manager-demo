@@ -10,6 +10,7 @@ on:
 
 env:
   AWS_REGION: eu-central-1
+  TF_VAR_build_number: "0"
 
 jobs:
   destroy:
@@ -64,7 +65,7 @@ jobs:
 
       - name: Clean up repository variables
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           REPO=${{ github.repository }}
 

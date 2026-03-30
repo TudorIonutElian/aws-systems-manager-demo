@@ -100,7 +100,8 @@ jobs:
 
           for ID in $INSTANCE_IDS; do
             echo "Waiting for $ID to register with SSM..."
-            for i in $(seq 1 30); do
+            ONLINE=false
+            for i in $(seq 1 60); do
               STATUS=$(aws ssm describe-instance-information \
                 --filters "Key=InstanceIds,Values=$ID" \
                 --region ${{ env.AWS_REGION }} \
@@ -109,12 +110,20 @@ jobs:
 
               if [[ "$STATUS" == "Online" ]]; then
                 echo "  ✓ $ID is online and ready"
+                ONLINE=true
                 break
               fi
-              echo "  [$i/30] Status: $STATUS - waiting..."
+              echo "  [$i/60] Status: $STATUS - waiting..."
               sleep 10
             done
+
+            if [[ "$ONLINE" == "false" ]]; then
+              echo "  ⚠️  Warning: $ID did not come online after 10 minutes"
+              echo "  This might be due to SSM agent startup delay or IAM propagation"
+            fi
           done
+
+          echo "Proceeding with deployment (instances should come online shortly)..."
 
       - name: Deploy React app via SSM
         run: |
