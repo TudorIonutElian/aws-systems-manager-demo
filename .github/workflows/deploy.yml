@@ -1,4 +1,4 @@
-name: Deploy
+name: DEMO - Deploy Infrastructure
 
 on:
   workflow_dispatch:

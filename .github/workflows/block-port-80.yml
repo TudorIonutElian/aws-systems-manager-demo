@@ -1,4 +1,4 @@
-name: Block Port 80
+name: DEMO - Block Port 80
 
 on:
   workflow_dispatch:

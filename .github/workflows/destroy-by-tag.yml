@@ -1,4 +1,4 @@
-name: Destroy Instances by Tag
+name: DEMO - Destroy Instances by Tag
 
 on:
   workflow_dispatch:

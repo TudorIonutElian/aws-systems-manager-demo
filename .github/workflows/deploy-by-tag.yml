@@ -1,4 +1,4 @@
-name: Deploy React App by Tag
+name: DEMO - Deploy React App by Tag
 
 on:
   workflow_dispatch:
